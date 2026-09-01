@@ -1,5 +1,6 @@
 import { removeBackground } from '@imgly/background-removal';
 import './styles.css';
+import './playful-theme.css';
 
 const app = document.querySelector('#app');
 const MAX_BYTES = 10 * 1024 * 1024;
