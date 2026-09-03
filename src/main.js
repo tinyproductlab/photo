@@ -6,6 +6,7 @@ import './id-preview.css';
 import './footer-compact.css';
 import './collage-order.css';
 import './watermark-tile.css';
+import './batch-transform.css';
 
 const app = document.querySelector('#app');
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -104,13 +105,18 @@ function batchEditor(){
 function loadBatchFiles(files){
   const total=files.reduce((sum,file)=>sum+file.size,0);if(!files.length||files.length>20||total>100*1024*1024)return alert(tr('请选择 1–20 张图片，且总大小不超过 100 MB。','Choose 1–20 images totaling no more than 100 MB.'));
   if(files.some(file=>!['image/png','image/jpeg','image/webp'].includes(file.type)||file.size>MAX_BYTES))return alert(tr('仅支持单张不超过 10 MB 的 PNG、JPG、WebP。','Each file must be PNG, JPG or WebP and under 10 MB.'));
-  state.batchFiles=files;document.querySelector('#batchControls').classList.remove('hidden');document.querySelector('#empty').classList.add('hidden');setStatus(tr(`已选择 ${files.length} 张图片。`,`Selected ${files.length} images.`));
+  state.batchFiles=files;document.querySelector('#batchControls').classList.remove('hidden');document.querySelector('#empty').classList.add('hidden');installBatchTransformControls();setStatus(tr(`已选择 ${files.length} 张图片。`,`Selected ${files.length} images.`));
   document.querySelector('#batchQuality').oninput=e=>document.querySelector('#batchQualityOut').textContent=e.target.value+'%';document.querySelector('#runBatch').onclick=runBatch;
 }
 
+function installBatchTransformControls(){
+  if(document.querySelector('#batchRotate'))return;const maxEdge=document.querySelector('#batchMaxEdge');if(!maxEdge)return;
+  const fields=document.createElement('div');fields.className='batch-transform';fields.innerHTML=`<label class="field"><span class="field-label">${tr('旋转','Rotate')}</span><select id="batchRotate"><option value="0">${tr('不旋转','No rotation')}</option><option value="90">${tr('右旋 90°','90° clockwise')}</option><option value="180">180°</option><option value="270">${tr('左旋 90°','90° counterclockwise')}</option></select></label><div class="batch-flips"><label><input id="batchFlipX" type="checkbox">${tr('水平翻转','Flip horizontal')}</label><label><input id="batchFlipY" type="checkbox">${tr('垂直翻转','Flip vertical')}</label></div>`;maxEdge.closest('.field')?.after(fields);
+}
+
 async function runBatch(){
-  const files=state.batchFiles,format=document.querySelector('#batchFormat').value,quality=+document.querySelector('#batchQuality').value/100,maxEdge=+document.querySelector('#batchMaxEdge').value||0,report=document.querySelector('#batchReport'),button=document.querySelector('#runBatch');button.disabled=true;let before=0,after=0;
-  try{for(let i=0;i<files.length;i++){const file=files[i],img=await blobToImage(file),scale=maxEdge&&Math.max(img.naturalWidth,img.naturalHeight)>maxEdge?maxEdge/Math.max(img.naturalWidth,img.naturalHeight):1,c=document.createElement('canvas');c.width=Math.round(img.naturalWidth*scale);c.height=Math.round(img.naturalHeight*scale);c.getContext('2d').drawImage(img,0,0,c.width,c.height);const blob=await canvasBlob(c,format,quality),ext=format==='image/png'?'png':format==='image/webp'?'webp':'jpg';before+=file.size;after+=blob.size;saveBlob(blob,`photo-${i+1}.${ext}`);setStatus(tr(`正在处理 ${i+1} / ${files.length} 张…`,`Processing ${i+1} / ${files.length}…`));}const saved=Math.max(0,Math.round((1-after/before)*100));report.textContent=tr(`完成：${files.length} 张图片，${formatBytes(before)} → ${formatBytes(after)}，节省 ${saved}%。`,`Done: ${files.length} images, ${formatBytes(before)} → ${formatBytes(after)}, saved ${saved}%.`);setStatus(tr('批量处理完成。','Batch processing complete.'));}catch(e){report.textContent=tr('处理未完成，请减少图片数量或大小后重试。','Processing did not finish. Try fewer or smaller images.');}finally{button.disabled=false;}
+  const files=state.batchFiles,format=document.querySelector('#batchFormat').value,quality=+document.querySelector('#batchQuality').value/100,maxEdge=+document.querySelector('#batchMaxEdge').value||0,rotate=+document.querySelector('#batchRotate')?.value||0,flipX=document.querySelector('#batchFlipX')?.checked?-1:1,flipY=document.querySelector('#batchFlipY')?.checked?-1:1,report=document.querySelector('#batchReport'),button=document.querySelector('#runBatch');button.disabled=true;let before=0,after=0;
+  try{for(let i=0;i<files.length;i++){const file=files[i],img=await blobToImage(file),scale=maxEdge&&Math.max(img.naturalWidth,img.naturalHeight)>maxEdge?maxEdge/Math.max(img.naturalWidth,img.naturalHeight):1,w=Math.round(img.naturalWidth*scale),h=Math.round(img.naturalHeight*scale),turns=rotate%180!==0,c=document.createElement('canvas');c.width=turns?h:w;c.height=turns?w:h;const ctx=c.getContext('2d');ctx.translate(c.width/2,c.height/2);ctx.rotate(rotate*Math.PI/180);ctx.scale(flipX,flipY);ctx.drawImage(img,-w/2,-h/2,w,h);const blob=await canvasBlob(c,format,quality),ext=format==='image/png'?'png':format==='image/webp'?'webp':'jpg';before+=file.size;after+=blob.size;saveBlob(blob,`photo-${i+1}.${ext}`);setStatus(tr(`正在处理 ${i+1} / ${files.length} 张…`,`Processing ${i+1} / ${files.length}…`));}const saved=Math.max(0,Math.round((1-after/before)*100));report.textContent=tr(`完成：${files.length} 张图片，${formatBytes(before)} → ${formatBytes(after)}，节省 ${saved}%。`,`Done: ${files.length} images, ${formatBytes(before)} → ${formatBytes(after)}, saved ${saved}%.`);setStatus(tr('批量处理完成。','Batch processing complete.'));}catch(e){report.textContent=tr('处理未完成，请减少图片数量或大小后重试。','Processing did not finish. Try fewer or smaller images.');}finally{button.disabled=false;}
 }
 
 async function loadCollageFiles(files){

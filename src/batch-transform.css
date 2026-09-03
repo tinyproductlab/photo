@@ -1,0 +1,4 @@
+.batch-transform { margin-top: -2px; }
+.batch-flips { display:flex; flex-wrap:wrap; gap:8px 14px; margin:-2px 0 13px; color:var(--muted); font-size:11.5px; }
+.batch-flips label { display:inline-flex; align-items:center; gap:5px; cursor:pointer; }
+.batch-flips input { width:14px; height:14px; margin:0; accent-color:var(--blue); }
