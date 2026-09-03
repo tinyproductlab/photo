@@ -1,0 +1,28 @@
+services:
+  photo-bg:
+    build: .
+    container_name: photo-bg
+    restart: unless-stopped
+    expose:
+      - "8830"
+    volumes:
+      - photo-bg-models:/models
+    networks:
+      - unmark_default
+    deploy:
+      resources:
+        limits:
+          memory: 3g
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8830/healthz', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 180s
+      retries: 3
+
+volumes:
+  photo-bg-models:
+
+networks:
+  unmark_default:
+    external: true
