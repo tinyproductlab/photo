@@ -11,7 +11,7 @@ import './batch-transform.css';
 const app = document.querySelector('#app');
 const MAX_BYTES = 10 * 1024 * 1024;
 const MAX_PIXELS = 24_000_000;
-const ONLINE_BG_API = 'https://photo-api.tinylabpro.com/v1/remove-background';
+const ONLINE_BG_API = 'https://image-api.tinylabpro.com/v1/remove-background';
 const specs = {
   inch1: { zh: '常用一寸 · 295 × 413', en: '1-inch · 295 × 413', w: 295, h: 413 },
   inch2: { zh: '常用二寸 · 413 × 579', en: '2-inch · 413 × 579', w: 413, h: 579 },
