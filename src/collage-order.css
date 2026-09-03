@@ -1,0 +1,5 @@
+.collage-order-section .notice { margin: 0 0 10px; }
+.collage-order-list { display: grid; gap: 6px; }
+.collage-order-item { display: flex; align-items: center; justify-content: space-between; min-height: 34px; padding: 5px 6px 5px 10px; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.order-actions { display: flex; gap: 5px; }
+.order-actions .btn { min-height: 24px; min-width: 29px; padding: 2px 7px; border-radius: 7px; font-size: 13px; line-height: 1; }
