@@ -2,6 +2,7 @@ import { removeBackground } from '@imgly/background-removal';
 import './styles.css';
 import './playful-theme.css';
 import './tool-directory.css';
+import './id-preview.css';
 
 const app = document.querySelector('#app');
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -21,7 +22,7 @@ function freshState(){ return { file:null, source:null, processed:null, outputW:
   zoom:1, offsetX:0, offsetY:0, rotate:0, flipX:1, flipY:1, background:'#ffffff', format:'image/png', quality:.9, batchFiles:[],
   removing:false, progress:0, status:'', objectUrls:[], watermarkText:'', watermarkColor:'#ffffff', bgMethod:'online',
   watermarkOpacity:.85, watermarkSize:42, watermarkX:42, watermarkY:88, watermarkLogo:null,
-  logoOpacity:.9, logoSize:22, logoX:82, logoY:82, collageImages:[], collageLayout:'grid', collageGap:18 }; }
+  logoOpacity:.9, logoSize:22, logoX:82, logoY:82, collageImages:[], collageLayout:'grid', collageGap:18, sheetPreview:false }; }
 const tr = (zh,en) => lang === 'zh' ? zh : en;
 
 function toolIcon(type){
@@ -126,6 +127,7 @@ function positionControls(){return `<label class="field"><span class="field-labe
 
 function bindCommon(){ const b=document.querySelector('#lang'); if(b)b.onclick=()=>{lang=lang==='zh'?'en':'zh';localStorage.setItem('photo_lang',lang);mode==='home'?home():editor();};const feedback=document.querySelector('#feedback');if(feedback)feedback.onclick=()=>location.href='mailto:userfeedback@zohomail.com?subject='+encodeURIComponent(tr('图片工坊反馈','Photo Lab feedback'));const coffee=document.querySelector('#coffee'),dialog=document.querySelector('#coffeeDialog');if(coffee&&dialog)coffee.onclick=()=>dialog.showModal();const close=document.querySelector('#closeCoffee');if(close)close.onclick=()=>dialog.close(); }
 function bindEditor(){
+  installPreviewRulers();
   ['zoom','offsetX','offsetY','rotate','quality'].forEach(id=>{const el=document.querySelector('#'+id);if(el)el.oninput=()=>{const key=id==='quality'?'quality':id;state[key]=id==='quality'?+el.value/100:+el.value/(id==='zoom'?100:1);const out=document.querySelector('#'+id+'Out');if(out)out.textContent=id==='zoom'?el.value+'%':id==='quality'?el.value+'%':id==='rotate'?el.value+'°':el.value;draw();};});
   ['outW','outH'].forEach(id=>{const el=document.querySelector('#'+id);el.onchange=()=>{state[id==='outW'?'outputW':'outputH']=Math.max(32,Math.min(4096,+el.value||100));draw();};});
   const spec=document.querySelector('#spec'); if(spec)spec.onchange=()=>{if(spec.value!=='custom'){const s=specs[spec.value];state.outputW=s.w;state.outputH=s.h;document.querySelector('#outW').value=s.w;document.querySelector('#outH').value=s.h;draw();}};
@@ -146,15 +148,33 @@ function bindEditor(){
   const collage=document.querySelector('#openCollage');if(collage)collage.onclick=()=>openTool('collage');
   const batch=document.querySelector('#openBatch');if(batch)batch.onclick=()=>openTool('batch');
   document.querySelector('#download').onclick=()=>downloadCanvas('photo');
-  const sheet=document.querySelector('#sheet');if(sheet)sheet.onclick=downloadSheet;
+  const sheet=document.querySelector('#sheet');if(sheet)sheet.onclick=toggleSheetPreview;
+  const downloadSheetButton=document.querySelector('#downloadSheet');if(downloadSheetButton)downloadSheetButton.onclick=downloadSheet;
   const canvas=document.querySelector('#canvas');let dragStart=null;if(canvas){canvas.onpointerdown=e=>{if(!state.source)return;dragStart={x:e.clientX,y:e.clientY,offsetX:state.offsetX,offsetY:state.offsetY};canvas.setPointerCapture?.(e.pointerId);};canvas.onpointermove=e=>{if(!dragStart)return;const rect=canvas.getBoundingClientRect();state.offsetX=Math.max(-100,Math.min(100,dragStart.offsetX+(e.clientX-dragStart.x)/rect.width*200));state.offsetY=Math.max(-100,Math.min(100,dragStart.offsetY+(e.clientY-dragStart.y)/rect.height*200));const x=document.querySelector('#offsetX'),y=document.querySelector('#offsetY'),xo=document.querySelector('#xOut'),yo=document.querySelector('#yOut');if(x)x.value=Math.round(state.offsetX);if(y)y.value=Math.round(state.offsetY);if(xo)xo.textContent=Math.round(state.offsetX);if(yo)yo.textContent=Math.round(state.offsetY);draw();};canvas.onpointerup=canvas.onpointercancel=()=>{dragStart=null;};}
+}
+
+function installPreviewRulers(){
+  const wrap=document.querySelector('.canvas-wrap'),canvas=document.querySelector('#canvas');
+  if(!wrap||!canvas||document.querySelector('#previewStage'))return;
+  const stage=document.createElement('div');stage.className='preview-stage hidden';stage.id='previewStage';
+  stage.innerHTML='<div class="ruler ruler-top" id="rulerTop"></div><div class="ruler ruler-left" id="rulerLeft"></div>';
+  canvas.before(stage);stage.append(canvas);
+  const physical=document.createElement('span');physical.className='status';physical.id='physicalSize';document.querySelector('.canvas-toolbar')?.append(physical);
+  const sheet=document.querySelector('#sheet');if(sheet&&!document.querySelector('#downloadSheet')){const button=document.createElement('button');button.className='btn primary wide hidden';button.id='downloadSheet';button.textContent=tr('下载六寸排版照','Download 6-inch sheet');button.onclick=downloadSheet;sheet.closest('.row2')?.after(button);}
+}
+
+function updatePreviewMeasurements(width,height,widthInches,heightInches){
+  const physical=document.querySelector('#physicalSize'),top=document.querySelector('#rulerTop'),left=document.querySelector('#rulerLeft');
+  if(physical)physical.textContent=tr(`按 300 DPI · ${widthInches.toFixed(1)} × ${heightInches.toFixed(1)} 英寸`,`At 300 DPI · ${widthInches.toFixed(1)} × ${heightInches.toFixed(1)} in`);
+  const marks=inches=>Array.from({length:Math.max(2,Math.ceil(inches)+1)},(_,i)=>`<span>${i}″</span>`).join('');
+  if(top)top.innerHTML=marks(widthInches);if(left)left.innerHTML=marks(heightInches);
 }
 
 async function loadFile(file){
   if(!file)return; const allowed=['image/png','image/jpeg','image/webp'];
   if(!allowed.includes(file.type))return alert(tr('只支持 PNG、JPG 和 WebP。','Only PNG, JPG and WebP are supported.'));
   if(file.size>MAX_BYTES)return alert(tr('图片超过 10 MB。','The image exceeds 10 MB.'));
-  try{const img=await blobToImage(file);if(img.naturalWidth*img.naturalHeight>MAX_PIXELS)throw new Error(tr('图片超过 2400 万像素。','The image exceeds 24 megapixels.'));state.file=file;state.source=img;state.processed=null;document.querySelector('#editing').classList.remove('hidden');document.querySelector('#empty').classList.add('hidden');document.querySelector('#canvas').classList.remove('hidden');setStatus(tr('照片已载入，元数据不会写入导出文件。','Photo loaded. Metadata will not be written to the export.'));draw();focusEntryControl();}catch(e){alert(e.message||e);}
+  try{const img=await blobToImage(file);if(img.naturalWidth*img.naturalHeight>MAX_PIXELS)throw new Error(tr('图片超过 2400 万像素。','The image exceeds 24 megapixels.'));state.file=file;state.source=img;state.processed=null;state.sheetPreview=false;document.querySelector('#editing').classList.remove('hidden');document.querySelector('#empty').classList.add('hidden');document.querySelector('#previewStage')?.classList.remove('hidden');document.querySelector('#canvas').classList.remove('hidden');setStatus(tr('照片已载入，元数据不会写入导出文件。','Photo loaded. Metadata will not be written to the export.'));draw();focusEntryControl();}catch(e){alert(e.message||e);}
 }
 function blobToImage(blob){return new Promise((resolve,reject)=>{const url=URL.createObjectURL(blob);state.objectUrls.push(url);const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(new Error(tr('无法读取这张图片。','Could not read this image.')));img.src=url;});}
 async function removeBg(){
@@ -169,15 +189,20 @@ async function removeOnlineBg(){
 function clearCornerColor(){
   if(!state.source)return;const img=state.source,c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(img,0,0);const d=x.getImageData(0,0,c.width,c.height),pts=[[0,0],[c.width-1,0],[0,c.height-1],[c.width-1,c.height-1]],avg=[0,0,0];pts.forEach(([px,py])=>{const i=(py*c.width+px)*4;avg[0]+=d.data[i];avg[1]+=d.data[i+1];avg[2]+=d.data[i+2];});avg.forEach((_,i)=>avg[i]/=4);for(let i=0;i<d.data.length;i+=4){const dist=Math.hypot(d.data[i]-avg[0],d.data[i+1]-avg[1],d.data[i+2]-avg[2]);if(dist<42)d.data[i+3]=Math.round(255*dist/42);}x.putImageData(d,0,0);c.toBlob(async b=>{state.processed=await blobToImage(b);draw();setStatus(tr('已将接近四角的颜色转为透明。','Colors close to the corners are now transparent.'));},'image/png');
 }
+function renderPhoto(canvas){
+  const ctx=canvas.getContext('2d');canvas.width=state.outputW;canvas.height=state.outputH;ctx.clearRect(0,0,canvas.width,canvas.height);if(state.background!=='transparent'){ctx.fillStyle=state.background;ctx.fillRect(0,0,canvas.width,canvas.height);}const img=state.processed||state.source,iw=img.naturalWidth||img.width,ih=img.naturalHeight||img.height,base=Math.max(canvas.width/iw,canvas.height/ih),scale=base*state.zoom,dw=iw*scale,dh=ih*scale,cx=canvas.width/2+state.offsetX/100*canvas.width/2,cy=canvas.height/2+state.offsetY/100*canvas.height/2;ctx.save();ctx.translate(cx,cy);ctx.rotate(state.rotate*Math.PI/180);ctx.scale(state.flipX,state.flipY);ctx.drawImage(img,-dw/2,-dh/2,dw,dh);ctx.restore();drawWatermark(ctx,canvas);
+}
 function draw(){
-  if(!state.source)return;const c=document.querySelector('#canvas'),ctx=c.getContext('2d');c.width=state.outputW;c.height=state.outputH;ctx.clearRect(0,0,c.width,c.height);if(state.background!=='transparent'){ctx.fillStyle=state.background;ctx.fillRect(0,0,c.width,c.height);}const img=state.processed||state.source,iw=img.naturalWidth||img.width,ih=img.naturalHeight||img.height,base=Math.max(c.width/iw,c.height/ih),scale=base*state.zoom,dw=iw*scale,dh=ih*scale,cx=c.width/2+state.offsetX/100*c.width/2,cy=c.height/2+state.offsetY/100*c.height/2;ctx.save();ctx.translate(cx,cy);ctx.rotate(state.rotate*Math.PI/180);ctx.scale(state.flipX,state.flipY);ctx.drawImage(img,-dw/2,-dh/2,dw,dh);ctx.restore();drawWatermark(ctx,c);document.querySelector('#dimensions').textContent=`${c.width} × ${c.height} px`;updateChecks();
+  if(!state.source)return;const c=document.querySelector('#canvas');if(state.sheetPreview){const photo=document.createElement('canvas');renderPhoto(photo);const sheet=buildSixInchSheet(photo);c.width=sheet.width;c.height=sheet.height;c.getContext('2d').drawImage(sheet,0,0);updatePreviewMeasurements(c.width,c.height,6,4);document.querySelector('#dimensions').textContent=`${c.width} × ${c.height} px`;setStatus(tr('正在预览六寸排版照；确认后可下载。','Previewing the 6-inch print sheet; download when ready.'));}else{renderPhoto(c);document.querySelector('#dimensions').textContent=`${c.width} × ${c.height} px`;updatePreviewMeasurements(c.width,c.height,c.width/300,c.height/300);}updateChecks();
 }
 function drawWatermark(ctx,c){if(state.watermarkText){ctx.save();ctx.globalAlpha=state.watermarkOpacity;ctx.fillStyle=state.watermarkColor;ctx.font=`600 ${state.watermarkSize}px system-ui,sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(state.watermarkText,c.width*state.watermarkX/100,c.height*state.watermarkY/100);ctx.restore();}if(state.watermarkLogo){const img=state.watermarkLogo,ratio=(img.naturalWidth||img.width)/(img.naturalHeight||img.height),w=c.width*state.logoSize/100,h=w/ratio;ctx.save();ctx.globalAlpha=state.logoOpacity;ctx.drawImage(img,c.width*state.logoX/100-w/2,c.height*state.logoY/100-h/2,w,h);ctx.restore();}}
 function updateChecks(){const box=document.querySelector('#checks');if(!box||!state.source)return;const checks=[[state.source.naturalWidth>=600&&state.source.naturalHeight>=600,tr('原图分辨率充足','Source resolution is sufficient')],[!!state.processed,tr('背景已处理','Background has been processed')],[state.outputW>=200&&state.outputH>=200,tr('输出尺寸有效','Output size is valid')]];box.innerHTML=checks.map(([ok,text])=>`<div class="quality ${ok?'ok':''}">${ok?'✓':'○'} ${text}</div>`).join('');}
 function setStatus(text){const el=document.querySelector('#status');if(el)el.textContent=text;}
 function canvasBlob(canvas,format=state.format,quality=state.quality){return new Promise(resolve=>canvas.toBlob(resolve,format,quality));}
 async function downloadCanvas(prefix){const c=document.querySelector('#canvas'),blob=await canvasBlob(c),ext=state.format==='image/png'?'png':state.format==='image/webp'?'webp':'jpg';saveBlob(blob,`${prefix}-${c.width}x${c.height}.${ext}`);setStatus(tr(`已导出 ${ext.toUpperCase()} · ${formatBytes(blob.size)}`,`Exported ${ext.toUpperCase()} · ${formatBytes(blob.size)}`));}
-async function downloadSheet(){const photo=document.querySelector('#canvas'),sheet=document.createElement('canvas');sheet.width=1800;sheet.height=1200;const x=sheet.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,sheet.width,sheet.height);const gap=30,scale=Math.min(1,(sheet.height-gap*2)/photo.height),w=Math.round(photo.width*scale),h=Math.round(photo.height*scale),cols=Math.max(1,Math.floor((sheet.width-gap)/(w+gap))),rows=Math.max(1,Math.floor((sheet.height-gap)/(h+gap))),ox=Math.round((sheet.width-(cols*w+(cols-1)*gap))/2),oy=Math.round((sheet.height-(rows*h+(rows-1)*gap))/2);for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){const px=ox+c*(w+gap),py=oy+r*(h+gap);x.drawImage(photo,px,py,w,h);x.strokeStyle='#bbb';x.setLineDash([6,5]);x.strokeRect(px-.5,py-.5,w+1,h+1);}saveBlob(await canvasBlob(sheet,'image/jpeg',.95),'id-photo-6inch-300dpi.jpg');setStatus(tr('已导出六寸排版照。','6-inch print sheet exported.'));}
+function buildSixInchSheet(photo){const sheet=document.createElement('canvas');sheet.width=1800;sheet.height=1200;const x=sheet.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,sheet.width,sheet.height);const gap=30,scale=Math.min(1,(sheet.height-gap*2)/photo.height),w=Math.round(photo.width*scale),h=Math.round(photo.height*scale),cols=Math.max(1,Math.floor((sheet.width-gap)/(w+gap))),rows=Math.max(1,Math.floor((sheet.height-gap)/(h+gap))),ox=Math.round((sheet.width-(cols*w+(cols-1)*gap))/2),oy=Math.round((sheet.height-(rows*h+(rows-1)*gap))/2);for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){const px=ox+c*(w+gap),py=oy+r*(h+gap);x.drawImage(photo,px,py,w,h);x.strokeStyle='#bbb';x.setLineDash([6,5]);x.strokeRect(px-.5,py-.5,w+1,h+1);}return sheet;}
+function toggleSheetPreview(){state.sheetPreview=!state.sheetPreview;const sheet=document.querySelector('#sheet'),download=document.querySelector('#download'),downloadSheetButton=document.querySelector('#downloadSheet');sheet.textContent=state.sheetPreview?tr('返回电子照','Back to image'):tr('预览六寸排版','Preview 6-inch sheet');download.classList.toggle('hidden',state.sheetPreview);downloadSheetButton?.classList.toggle('hidden',!state.sheetPreview);draw();}
+async function downloadSheet(){const photo=document.createElement('canvas');renderPhoto(photo);const sheet=buildSixInchSheet(photo);saveBlob(await canvasBlob(sheet,'image/jpeg',.95),'id-photo-6inch-300dpi.jpg');setStatus(tr('已下载六寸排版照。','6-inch print sheet downloaded.'));}
 function formatBytes(bytes){return bytes<1024?`${bytes} B`:bytes<1024*1024?`${(bytes/1024).toFixed(1)} KB`:`${(bytes/1024/1024).toFixed(2)} MB`;}
 function saveBlob(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 
