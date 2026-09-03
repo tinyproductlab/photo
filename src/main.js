@@ -3,6 +3,7 @@ import './styles.css';
 import './playful-theme.css';
 import './tool-directory.css';
 import './id-preview.css';
+import './footer-compact.css';
 
 const app = document.querySelector('#app');
 const MAX_BYTES = 10 * 1024 * 1024;
