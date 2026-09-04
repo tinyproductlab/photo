@@ -2,6 +2,3 @@
 
 /* 使用正式品牌图的中央实验方块，站名由紧邻的文字承担。 */
 .brand-photo{display:flex;align-items:center;gap:9px}.brand-photo::before{display:none}.brand-photo .brand-mark{display:block;width:30px;height:30px;flex:0 0 30px;padding:0;border-radius:9px;background:#fff url('/image-toolbox-mark.png') center/cover no-repeat;overflow:hidden}.brand-photo .brand-mark>*{display:none}
-
-/* 首页展示完整品牌图：保留“从小产品实验室里做出来”的来源感。 */
-.hero-inner{position:relative;padding-right:clamp(210px,24vw,320px)}.hero-inner::after{content:"";position:absolute;z-index:0;top:20px;right:clamp(-12px,1vw,20px);width:clamp(180px,22vw,280px);aspect-ratio:1;border-radius:20px;background:#fff url('/image-toolbox-full.png') center/cover no-repeat;box-shadow:0 16px 34px rgba(42,62,92,.16);transform:none}.hero-inner>*{position:relative;z-index:1}@media(max-width:760px){.hero-inner{padding-right:0}.hero-inner::after{position:absolute;top:12px;right:8px;display:block;width:min(144px,38vw);margin:0;transform:none}.hero-inner h1{max-width:8ch;min-height:116px}}
