@@ -6,9 +6,45 @@
   <meta name="description" content="图片工坊：在浏览器本地制作证件照、透明图片和 Logo。" />
   <link rel="canonical" href="https://image.tinylabpro.com/" />
   <title>图片工坊 · 小产品实验室</title>
+  <meta property="og:title" content="图片工坊 · 浏览器本地的图片处理工具" />
+  <meta property="og:description" content="证件照、压缩、改尺寸、裁剪、去背景、加水印、拼图等 9 个工具，照片默认不离开你的浏览器。" />
+  <meta property="og:url" content="https://image.tinylabpro.com/" />
+  <meta property="og:type" content="website" />
 </head>
 <body>
-  <div id="app"></div>
+  <!-- 首屏静态内容：Googlebot 抓到的原始 HTML 里必须有真实文字。
+       应用启动时 src/main.js 会执行 app.innerHTML = ...，把这块整体替换掉，
+       所以它只在「JS 尚未执行」时可见 —— 对搜索引擎是内容，对用户是首屏占位。
+       改工具列表时记得同步这里，两边说的必须是同一件事。 -->
+  <div id="app">
+    <header>
+      <p>TINY PRODUCT LAB · 小产品实验室</p>
+      <h1>图片工坊 · 浏览器本地的图片处理工具</h1>
+      <p>制作证件照、压缩图片、去背景、加水印和拼图。照片默认只在你的浏览器里处理，不上传服务器。</p>
+    </header>
+    <section>
+      <h2>9 个浏览器本地图片工具</h2>
+      <ul>
+      <li><h3>证件照制作</h3><p>自动去背景、换底色、选尺寸，还能导出六寸排版照。</p></li>
+      <li><h3>图片压缩</h3><p>单张或批量压缩，清楚显示处理前后体积和节省比例。</p></li>
+      <li><h3>修改尺寸</h3><p>按像素调整宽高，也能在保留画面比例后重新导出。</p></li>
+      <li><h3>图片裁剪</h3><p>自由裁剪或使用 1:1、4:3、16:9 等常用比例。</p></li>
+      <li><h3>旋转与翻转</h3><p>左旋、右旋、水平翻转、垂直翻转，一次处理完成。</p></li>
+      <li><h3>格式转换</h3><p>在 JPG、PNG、WebP 之间转换，支持一次处理多张图片。</p></li>
+      <li><h3>图片加水印</h3><p>添加文字或 Logo 水印，自由调整透明度、大小和位置。</p></li>
+      <li><h3>图片拼图</h3><p>横向、纵向、网格或九宫格拼图；一张图片也可以重复排版。</p></li>
+      <li><h3>智能去背景</h3><p>浏览器本地识别主体，导出透明 PNG 或替换为纯色底图。</p></li>
+      </ul>
+    </section>
+    <section>
+      <h2>关于数据</h2>
+      <p>基础处理无需注册，图片默认不离开你的设备。支持 PNG、JPG、WebP，单张不超过 10 MB、2400 万像素。</p>
+      <p>更多工具见 <a href="https://tinylabpro.com/">小产品实验室</a>。</p>
+    </section>
+    <noscript>
+      <p>图片工坊需要 JavaScript 才能进行图片处理。请开启 JavaScript 后重新打开本页。</p>
+    </noscript>
+  </div>
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>
