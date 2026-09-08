@@ -1,5 +1,16 @@
 .collage-order-section .notice { margin: 0 0 10px; }
 .collage-order-list { display: grid; gap: 6px; }
-.collage-order-item { display: flex; align-items: center; justify-content: space-between; min-height: 34px; padding: 5px 6px 5px 10px; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.collage-order-item { display: grid; grid-template-columns: 18px 42px 1fr auto; align-items: center; gap: 8px; min-height: 48px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; cursor: grab; transition: opacity .14s, border-color .14s, transform .14s; }
+.collage-order-item:active { cursor: grabbing; }
+.collage-order-item.dragging { opacity: .45; }
+.collage-order-item.drag-over { border-color: var(--blue); transform: translateY(1px); }
+.collage-order-item img { display: block; width: 42px; height: 38px; border-radius: 6px; object-fit: cover; background: #f2f2f2; }
+.drag-handle { color: #9aa0aa; font-size: 17px; line-height: 1; }
 .order-actions { display: flex; gap: 5px; }
 .order-actions .btn { min-height: 24px; min-width: 29px; padding: 2px 7px; border-radius: 7px; font-size: 13px; line-height: 1; }
+.collage-canvas-wrap canvas { display: block; width: auto; height: auto; max-width: 100%; max-height: 560px; object-fit: contain; cursor: zoom-in; }
+.collage-preview-dialog { width: min(94vw, 1200px); max-width: none; height: min(92vh, 900px); max-height: none; padding: 42px 18px 18px; border: 1px solid var(--line); border-radius: 16px; background: #171a1f; color: #fff; box-shadow: 0 28px 90px rgba(0,0,0,.42); }
+.collage-preview-dialog::backdrop { background: rgba(10,12,16,.78); backdrop-filter: blur(4px); }
+.collage-preview-dialog img { display: block; width: 100%; height: calc(100% - 28px); object-fit: contain; }
+.collage-preview-dialog p { margin: 8px 0 0; text-align: center; color: #c9ced8; font-size: 12px; }
+.collage-preview-dialog .dialog-close { position: absolute; top: 7px; right: 12px; color: #fff; }
