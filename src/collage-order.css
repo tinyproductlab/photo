@@ -9,8 +9,8 @@
 .order-actions { display: flex; gap: 5px; }
 .order-actions .btn { min-height: 24px; min-width: 29px; padding: 2px 7px; border-radius: 7px; font-size: 13px; line-height: 1; }
 .collage-canvas-wrap canvas { display: block; width: auto; height: auto; max-width: 100%; max-height: 560px; object-fit: contain; cursor: zoom-in; }
-.collage-preview-dialog { width: min(94vw, 1200px); max-width: none; height: min(92vh, 900px); max-height: none; padding: 42px 18px 18px; border: 1px solid var(--line); border-radius: 16px; background: #171a1f; color: #fff; box-shadow: 0 28px 90px rgba(0,0,0,.42); }
-.collage-preview-dialog::backdrop { background: rgba(10,12,16,.78); backdrop-filter: blur(4px); }
-.collage-preview-dialog img { display: block; width: 100%; height: calc(100% - 28px); object-fit: contain; }
-.collage-preview-dialog p { margin: 8px 0 0; text-align: center; color: #c9ced8; font-size: 12px; }
-.collage-preview-dialog .dialog-close { position: absolute; top: 7px; right: 12px; color: #fff; }
+.collage-preview-dialog { width: fit-content; max-width: 96vw; height: fit-content; max-height: 94vh; padding: 38px 12px 12px; border: 1px solid rgba(255,255,255,.9); border-radius: 16px; overflow: auto; background: rgba(255,255,255,.96); color: var(--ink); box-shadow: 0 24px 70px rgba(35,43,52,.24); }
+.collage-preview-dialog::backdrop { background: rgba(235,238,242,.72); backdrop-filter: blur(3px); }
+.collage-preview-dialog img { display: block; width: auto; height: auto; max-width: calc(96vw - 24px); max-height: calc(94vh - 70px); object-fit: contain; margin: auto; }
+.collage-preview-dialog p { margin: 8px 0 0; text-align: center; color: var(--muted); font-size: 12px; }
+.collage-preview-dialog .dialog-close { position: absolute; top: 5px; right: 10px; color: var(--ink); }
