@@ -156,8 +156,9 @@ function bindEditor(){
   const bgMode=document.querySelector('#bgMode');if(bgMode)bgMode.onchange=()=>{state.background=bgMode.value;draw();};
   document.querySelectorAll('input[name="bgMethod"]').forEach(input=>input.onchange=()=>{state.bgMethod=input.value;});
   const cropRatio=document.querySelector('#cropRatio');if(cropRatio)cropRatio.onchange=()=>{if(cropRatio.value!=='free'){const ratio=+cropRatio.value;state.outputH=Math.round(state.outputW/ratio);document.querySelector('#outH').value=state.outputH;draw();}};
-  const rotateLeft=document.querySelector('#rotateLeft');if(rotateLeft)rotateLeft.onclick=()=>{state.rotate=(state.rotate-90+360)%360;draw();};
-  const rotateRight=document.querySelector('#rotateRight');if(rotateRight)rotateRight.onclick=()=>{state.rotate=(state.rotate+90)%360;draw();};
+  const rotateImage=delta=>{state.rotate=(state.rotate+delta+360)%360;[state.outputW,state.outputH]=[state.outputH,state.outputW];const outW=document.querySelector('#outW'),outH=document.querySelector('#outH');if(outW)outW.value=state.outputW;if(outH)outH.value=state.outputH;draw();};
+  const rotateLeft=document.querySelector('#rotateLeft');if(rotateLeft)rotateLeft.onclick=()=>rotateImage(-90);
+  const rotateRight=document.querySelector('#rotateRight');if(rotateRight)rotateRight.onclick=()=>rotateImage(90);
   const flipHorizontal=document.querySelector('#flipHorizontal');if(flipHorizontal)flipHorizontal.onclick=()=>{state.flipX*=-1;draw();};
   const flipVertical=document.querySelector('#flipVertical');if(flipVertical)flipVertical.onclick=()=>{state.flipY*=-1;draw();};
   const fmt=document.querySelector('#format');fmt.onchange=()=>{state.format=fmt.value;document.querySelector('#qualityField').classList.toggle('hidden',fmt.value==='image/png');};
@@ -195,7 +196,7 @@ async function loadFile(file){
   if(!file)return; const allowed=['image/png','image/jpeg','image/webp'];
   if(!allowed.includes(file.type))return alert(tr('只支持 PNG、JPG 和 WebP。','Only PNG, JPG and WebP are supported.'));
   if(file.size>MAX_BYTES)return alert(tr('图片超过 10 MB。','The image exceeds 10 MB.'));
-  try{const img=await blobToImage(file);if(img.naturalWidth*img.naturalHeight>MAX_PIXELS)throw new Error(tr('图片超过 2400 万像素。','The image exceeds 24 megapixels.'));state.file=file;state.source=img;state.processed=null;state.sheetPreview=false;document.querySelector('#editing').classList.remove('hidden');document.querySelector('#empty').classList.add('hidden');document.querySelector('#previewStage')?.classList.remove('hidden');document.querySelector('#canvas').classList.remove('hidden');setStatus(tr('照片已载入，元数据不会写入导出文件。','Photo loaded. Metadata will not be written to the export.'));draw();focusEntryControl();}catch(e){alert(e.message||e);}
+  try{const img=await blobToImage(file);if(img.naturalWidth*img.naturalHeight>MAX_PIXELS)throw new Error(tr('图片超过 2400 万像素。','The image exceeds 24 megapixels.'));state.file=file;state.source=img;state.processed=null;state.sheetPreview=false;if(mode==='image'){const scale=Math.min(1,4096/Math.max(img.naturalWidth,img.naturalHeight));state.outputW=Math.max(32,Math.round(img.naturalWidth*scale));state.outputH=Math.max(32,Math.round(img.naturalHeight*scale));const outW=document.querySelector('#outW'),outH=document.querySelector('#outH');if(outW)outW.value=state.outputW;if(outH)outH.value=state.outputH;}document.querySelector('#editing').classList.remove('hidden');document.querySelector('#empty').classList.add('hidden');document.querySelector('#previewStage')?.classList.remove('hidden');document.querySelector('#canvas').classList.remove('hidden');setStatus(mode==='image'?tr('照片已载入，默认保持原图比例。','Photo loaded at its original aspect ratio.'):tr('照片已载入，元数据不会写入导出文件。','Photo loaded. Metadata will not be written to the export.'));draw();focusEntryControl();}catch(e){alert(e.message||e);}
 }
 function blobToImage(blob){return new Promise((resolve,reject)=>{const url=URL.createObjectURL(blob);state.objectUrls.push(url);const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(new Error(tr('无法读取这张图片。','Could not read this image.')));img.src=url;});}
 async function removeBg(){
