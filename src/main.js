@@ -289,14 +289,43 @@ async function loadFile(file){
   try{const img=await blobToImage(file);if(img.naturalWidth*img.naturalHeight>MAX_PIXELS)throw new Error(tr('图片超过 2400 万像素。','The image exceeds 24 megapixels.'));state.file=file;state.source=img;state.processed=null;state.sheetPreview=false;if(mode==='image'){const scale=Math.min(1,4096/Math.max(img.naturalWidth,img.naturalHeight));state.outputW=Math.max(32,Math.round(img.naturalWidth*scale));state.outputH=Math.max(32,Math.round(img.naturalHeight*scale));const outW=document.querySelector('#outW'),outH=document.querySelector('#outH');if(outW)outW.value=state.outputW;if(outH)outH.value=state.outputH;}document.querySelector('#editing').classList.remove('hidden');document.querySelector('#empty').classList.add('hidden');document.querySelector('#previewStage')?.classList.remove('hidden');document.querySelector('#canvas').classList.remove('hidden');setStatus(mode==='image'?tr('照片已载入，默认保持原图比例。','Photo loaded at its original aspect ratio.'):tr('照片已载入，元数据不会写入导出文件。','Photo loaded. Metadata will not be written to the export.'));updateIdSteps(1);draw();focusEntryControl();}catch(e){alert(e.message||e);}
 }
 function blobToImage(blob){return new Promise((resolve,reject)=>{const url=URL.createObjectURL(blob);state.objectUrls.push(url);const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(new Error(tr('无法读取这张图片。','Could not read this image.')));img.src=url;});}
+
+async function cleanCutoutEdges(blob){
+  if(!state.source)return blob;
+  const cutout=await blobToImage(blob),width=cutout.naturalWidth,height=cutout.naturalHeight;
+  if(width!==state.source.naturalWidth||height!==state.source.naturalHeight)return blob;
+  const sourceCanvas=document.createElement('canvas'),resultCanvas=document.createElement('canvas');
+  sourceCanvas.width=resultCanvas.width=width;sourceCanvas.height=resultCanvas.height=height;
+  const sourceContext=sourceCanvas.getContext('2d',{willReadFrequently:true}),resultContext=resultCanvas.getContext('2d',{willReadFrequently:true});
+  sourceContext.drawImage(state.source,0,0,width,height);resultContext.drawImage(cutout,0,0,width,height);
+  const sourceData=sourceContext.getImageData(0,0,width,height),resultData=resultContext.getImageData(0,0,width,height);
+  const sample=Math.max(2,Math.round(Math.min(width,height)*.035)),background=[0,0,0];let samples=0;
+  const corners=[[0,0],[width-sample,0],[0,height-sample],[width-sample,height-sample]];
+  for(const [left,top] of corners)for(let y=top;y<top+sample;y+=2)for(let x=left;x<left+sample;x+=2){const i=(y*width+x)*4;background[0]+=sourceData.data[i];background[1]+=sourceData.data[i+1];background[2]+=sourceData.data[i+2];samples++;}
+  background[0]/=samples;background[1]/=samples;background[2]/=samples;
+  for(let i=0;i<resultData.data.length;i+=4){
+    const alpha=resultData.data[i+3]/255;
+    if(alpha<=.03||alpha>=.985)continue;
+    const strength=Math.min(.92,(1-alpha)*1.35);
+    for(let channel=0;channel<3;channel++){
+      const recovered=(sourceData.data[i+channel]-(1-alpha)*background[channel])/Math.max(alpha,.08);
+      const corrected=Math.max(0,Math.min(255,recovered));
+      resultData.data[i+channel]=Math.round(resultData.data[i+channel]*(1-strength)+corrected*strength);
+    }
+    if(alpha<.12)resultData.data[i+3]=Math.round(resultData.data[i+3]*(alpha/.12));
+  }
+  resultContext.putImageData(resultData,0,0);
+  return new Promise(resolve=>resultCanvas.toBlob(resolve,'image/png'));
+}
+
 async function removeBg(){
   if(!state.file)return; if(state.bgMethod==='online')return removeOnlineBg(); const btn=document.querySelector('#removeBg'),bar=document.querySelector('#progress');btn.disabled=true;bar.classList.remove('hidden');setStatus(tr('正在准备本地人像模型…','Preparing the local portrait model…'));
-  try{const blob=await removeBackground(state.file,{model:'isnet_quint8',device:'cpu',output:{format:'image/png',quality:1,type:'foreground'},progress:(key,current,total)=>{const p=total?Math.round(current/total*100):15;bar.firstElementChild.style.width=p+'%';setStatus(tr(`正在本地处理：${p}%`,`Processing locally: ${p}%`));}});state.processed=await blobToImage(blob);bar.firstElementChild.style.width='100%';setStatus(tr('背景已去除，可以选择底色并微调位置。','Background removed. Choose a color and fine-tune the position.'));updateIdSteps(2);draw();}catch(e){console.error(e);alert(tr('智能去背景没有完成，请检查网络后重试。首次使用需要下载模型。','Background removal did not finish. Check your connection and try again; the first run downloads a model.'));setStatus(tr('去背景失败，原图仍可继续编辑。','Removal failed; you can still edit the original.'));}finally{btn.disabled=false;setTimeout(()=>bar.classList.add('hidden'),500);}
+  try{const blob=await removeBackground(state.file,{model:'isnet_quint8',device:'cpu',output:{format:'image/png',quality:1,type:'foreground'},progress:(key,current,total)=>{const p=total?Math.round(current/total*100):15;bar.firstElementChild.style.width=p+'%';setStatus(tr(`正在本地处理：${p}%`,`Processing locally: ${p}%`));}});setStatus(tr('正在净化人物边缘…','Cleaning portrait edges…'));state.processed=await blobToImage(await cleanCutoutEdges(blob));bar.firstElementChild.style.width='100%';setStatus(tr('背景已去除，边缘旧底色已净化。','Background removed and edge color cleaned.'));updateIdSteps(2);draw();}catch(e){console.error(e);alert(tr('智能去背景没有完成，请检查网络后重试。首次使用需要下载模型。','Background removal did not finish. Check your connection and try again; the first run downloads a model.'));setStatus(tr('去背景失败，原图仍可继续编辑。','Removal failed; you can still edit the original.'));}finally{btn.disabled=false;setTimeout(()=>bar.classList.add('hidden'),500);}
 }
 
 async function removeOnlineBg(){
   const btn=document.querySelector('#removeBg'),bar=document.querySelector('#progress');btn.disabled=true;bar.classList.remove('hidden');bar.firstElementChild.style.width='18%';setStatus(tr('正在加密上传图片并等待服务器处理…','Uploading securely and waiting for server processing…'));
-  try{const form=new FormData();form.append('file',state.file,state.file.name||'photo');const response=await fetch(ONLINE_BG_API,{method:'POST',body:form,cache:'no-store'});if(!response.ok){const detail=await response.text();throw new Error(detail||response.statusText);}bar.firstElementChild.style.width='88%';const blob=await response.blob();state.processed=await blobToImage(blob);bar.firstElementChild.style.width='100%';setStatus(tr('在线去背景完成。服务器不会保存这张图片。','Online background removal complete. The server does not retain this image.'));updateIdSteps(2);draw();}catch(error){console.error(error);alert(tr('在线去背景暂时不可用。你可以改选“本地处理”，或稍后重试。','Online background removal is temporarily unavailable. Choose local processing or try again later.'));setStatus(tr('在线处理未完成，原图仍可继续编辑。','Online processing did not finish; you can still edit the original.'));}finally{btn.disabled=false;setTimeout(()=>bar.classList.add('hidden'),500);}
+  try{const form=new FormData();form.append('file',state.file,state.file.name||'photo');const response=await fetch(ONLINE_BG_API,{method:'POST',body:form,cache:'no-store'});if(!response.ok){const detail=await response.text();throw new Error(detail||response.statusText);}bar.firstElementChild.style.width='88%';const blob=await response.blob();setStatus(tr('正在净化人物边缘…','Cleaning portrait edges…'));state.processed=await blobToImage(await cleanCutoutEdges(blob));bar.firstElementChild.style.width='100%';setStatus(tr('在线去背景完成，边缘旧底色已净化。','Online removal complete and edge color cleaned.'));updateIdSteps(2);draw();}catch(error){console.error(error);alert(tr('在线去背景暂时不可用。你可以改选“本地处理”，或稍后重试。','Online background removal is temporarily unavailable. Choose local processing or try again later.'));setStatus(tr('在线处理未完成，原图仍可继续编辑。','Online processing did not finish; you can still edit the original.'));}finally{btn.disabled=false;setTimeout(()=>bar.classList.add('hidden'),500);}
 }
 function clearCornerColor(){
   if(!state.source)return;const img=state.source,c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(img,0,0);const d=x.getImageData(0,0,c.width,c.height),pts=[[0,0],[c.width-1,0],[0,c.height-1],[c.width-1,c.height-1]],avg=[0,0,0];pts.forEach(([px,py])=>{const i=(py*c.width+px)*4;avg[0]+=d.data[i];avg[1]+=d.data[i+1];avg[2]+=d.data[i+2];});avg.forEach((_,i)=>avg[i]/=4);for(let i=0;i<d.data.length;i+=4){const dist=Math.hypot(d.data[i]-avg[0],d.data[i+1]-avg[1],d.data[i+2]-avg[2]);if(dist<42)d.data[i+3]=Math.round(255*dist/42);}x.putImageData(d,0,0);c.toBlob(async b=>{state.processed=await blobToImage(b);draw();setStatus(tr('已将接近四角的颜色转为透明。','Colors close to the corners are now transparent.'));},'image/png');
