@@ -7,6 +7,7 @@ import './footer-compact.css';
 import './collage-order.css';
 import './watermark-tile.css';
 import './batch-transform.css';
+import './id-workflow.css';
 
 const app = document.querySelector('#app');
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -65,7 +66,7 @@ function home(){
   document.querySelectorAll('[data-tool]').forEach(el => el.onclick = () => openTool(el.dataset.tool,el.dataset.entry));
 }
 
-function openTool(next,entry=''){ mode=next; state=freshState(); state.entry=entry; if(next==='collage')return collageEditor(); if(next==='batch')return batchEditor(); if(next==='image'){state.outputW=1000;state.outputH=1000;state.background='transparent';} editor(); }
+function openTool(next,entry=''){ mode=next; state=freshState(); state.entry=entry; if(next==='id'){state.bgMethod='local';return idEditor();} if(next==='collage')return collageEditor(); if(next==='batch')return batchEditor(); if(next==='image'){state.outputW=1000;state.outputH=1000;state.background='transparent';} editor(); }
 
 function entryHint(){
   const hints={
@@ -84,6 +85,95 @@ function focusEntryControl(){
   if(!target)return;
   target.closest('.control-section')?.scrollIntoView({behavior:'smooth',block:'start'});
   target.focus({preventScroll:true});
+}
+
+function idEditor(){
+  app.innerHTML = shell(`
+    <section class="card workspace id-workspace">
+      <div class="workspace-head">
+        <div class="workspace-heading">
+          <button class="back" id="back" aria-label="${tr('返回','Back')}">←</button>
+          <div class="workspace-title">
+            <h2>${tr('证件照制作','ID photo maker')}</h2>
+            <p>${tr('从原图到电子照和六寸排版照','From portrait to digital and print-ready photos')}</p>
+          </div>
+        </div>
+        <div class="id-steps" aria-label="${tr('制作步骤','Workflow')}">
+          <span class="id-step active"><b>1</b>${tr('上传','Upload')}</span>
+          <span class="id-step"><b>2</b>${tr('抠图','Cutout')}</span>
+          <span class="id-step"><b>3</b>${tr('调整','Adjust')}</span>
+          <span class="id-step"><b>4</b>${tr('导出','Export')}</span>
+        </div>
+      </div>
+      <div class="editor id-editor">
+        <aside class="controls">
+          <div class="control-section">
+            <h3>1 · ${tr('上传正面照片','Upload a portrait')}</h3>
+            <label class="upload">
+              <strong>${tr('选择或拖入照片','Choose or drop a photo')}</strong>
+              <small>PNG / JPG / WebP · ≤ 10 MB</small>
+              <input id="file" type="file" accept="image/png,image/jpeg,image/webp">
+            </label>
+            <div class="id-guide">
+              <span>${tr('正面平视','Face forward')}</span>
+              <span>${tr('光线均匀','Even lighting')}</span>
+              <span>${tr('背景简单','Plain background')}</span>
+            </div>
+          </div>
+          <div id="editing" class="hidden">
+            <div class="control-section">
+              <h3>2 · ${tr('去除并更换背景','Remove and replace background')}</h3>
+              <div class="id-methods">
+                <label><input type="radio" name="bgMethod" value="local" checked><span><strong>${tr('本地处理（推荐）','Local processing (recommended)')}</strong><small>${tr('照片不上传；首次需下载模型，之后可缓存使用。','Photo stays on device; the model downloads once and is cached.')}</small></span></label>
+                <label><input type="radio" name="bgMethod" value="online"><span><strong>${tr('在线处理（更快捷）','Online processing (faster)')}</strong><small>${tr('照片会临时发送到服务器处理，处理完成后不保存。','Photo is sent temporarily and is not retained after processing.')}</small></span></label>
+              </div>
+              <button class="btn primary wide" id="removeBg">${tr('开始智能去背景','Remove background')}</button>
+              <div class="progress hidden" id="progress"><i></i></div>
+              <div class="id-colors" aria-label="${tr('背景颜色','Background color')}">
+                <button class="id-color active" data-bg="#ffffff"><i style="background:#fff"></i>${tr('白底','White')}</button>
+                <button class="id-color" data-bg="#438edb"><i style="background:#438edb"></i>${tr('蓝底','Blue')}</button>
+                <button class="id-color" data-bg="#d9303e"><i style="background:#d9303e"></i>${tr('红底','Red')}</button>
+                <label class="id-color"><input id="bgCustom" type="color" value="#ffffff" class="hidden"><i style="background:linear-gradient(135deg,#f66,#fc6,#6c9,#69f)"></i>${tr('自定义','Custom')}</label>
+              </div>
+            </div>
+            <div class="control-section">
+              <h3>3 · ${tr('规格与人物位置','Size and portrait position')}</h3>
+              <label class="field"><span class="field-label">${tr('常用规格','Preset')}</span><select id="spec">${Object.entries(specs).map(([key,value])=>`<option value="${key}">${value[lang]}</option>`).join('')}<option value="custom">${tr('自定义尺寸','Custom size')}</option></select></label>
+              <div class="row2">
+                <label class="field"><span class="field-label">${tr('宽度 px','Width px')}</span><input id="outW" type="number" min="100" max="4096" value="295"></label>
+                <label class="field"><span class="field-label">${tr('高度 px','Height px')}</span><input id="outH" type="number" min="100" max="4096" value="413"></label>
+              </div>
+              ${positionControls()}
+              <div class="quality-list" id="checks"></div>
+            </div>
+            <div class="control-section">
+              <h3>4 · ${tr('检查并导出','Check and export')}</h3>
+              <label class="field"><span class="field-label">${tr('电子照格式','Digital format')}</span><select id="format"><option value="image/png">PNG</option><option value="image/jpeg">JPG</option><option value="image/webp">WebP</option></select></label>
+              <label class="field" id="qualityField"><span class="field-label"><span>${tr('图片质量','Quality')}</span><output id="qualityOut">90%</output></span><input id="quality" type="range" min="50" max="100" value="90"></label>
+              <div class="row2"><button class="btn primary" id="download">${tr('下载电子照','Download photo')}</button><button class="btn secondary" id="sheet">${tr('预览六寸排版','Preview print sheet')}</button></div>
+              <p class="id-export-note">${tr('规格为常用参考值；报名、考试或证件办理前，请核对机构最新要求。','Presets are references. Verify the latest official requirements before use.')}</p>
+            </div>
+          </div>
+        </aside>
+        <div class="canvas-area">
+          <div class="canvas-toolbar"><span class="status" id="status">${tr('先上传一张正面照片','Upload a portrait to begin')}</span><span class="status" id="dimensions"></span></div>
+          <div class="canvas-wrap"><div class="empty" id="empty"><div class="empty-icon">▧</div><p>${tr('照片会显示在这里。上传后可拖动画面调整人物位置。','Your photo appears here. Drag it to adjust the portrait position.')}</p></div><canvas id="canvas" class="hidden"></canvas></div>
+        </div>
+      </div>
+    </section>`);
+  bindCommon();
+  document.querySelector('#back').onclick=home;
+  document.querySelector('#file').onchange=e=>loadFile(e.target.files[0]);
+  const upload=document.querySelector('.id-workspace .upload');
+  upload.ondragover=e=>{e.preventDefault();upload.classList.add('drag-over');};
+  upload.ondragleave=()=>upload.classList.remove('drag-over');
+  upload.ondrop=e=>{e.preventDefault();upload.classList.remove('drag-over');loadFile(e.dataTransfer.files[0]);};
+  bindEditor();
+}
+
+function updateIdSteps(step){
+  if(mode!=='id')return;
+  document.querySelectorAll('.id-step').forEach((item,index)=>item.classList.toggle('active',index<=step));
 }
 
 function editor(){
@@ -196,17 +286,17 @@ async function loadFile(file){
   if(!file)return; const allowed=['image/png','image/jpeg','image/webp'];
   if(!allowed.includes(file.type))return alert(tr('只支持 PNG、JPG 和 WebP。','Only PNG, JPG and WebP are supported.'));
   if(file.size>MAX_BYTES)return alert(tr('图片超过 10 MB。','The image exceeds 10 MB.'));
-  try{const img=await blobToImage(file);if(img.naturalWidth*img.naturalHeight>MAX_PIXELS)throw new Error(tr('图片超过 2400 万像素。','The image exceeds 24 megapixels.'));state.file=file;state.source=img;state.processed=null;state.sheetPreview=false;if(mode==='image'){const scale=Math.min(1,4096/Math.max(img.naturalWidth,img.naturalHeight));state.outputW=Math.max(32,Math.round(img.naturalWidth*scale));state.outputH=Math.max(32,Math.round(img.naturalHeight*scale));const outW=document.querySelector('#outW'),outH=document.querySelector('#outH');if(outW)outW.value=state.outputW;if(outH)outH.value=state.outputH;}document.querySelector('#editing').classList.remove('hidden');document.querySelector('#empty').classList.add('hidden');document.querySelector('#previewStage')?.classList.remove('hidden');document.querySelector('#canvas').classList.remove('hidden');setStatus(mode==='image'?tr('照片已载入，默认保持原图比例。','Photo loaded at its original aspect ratio.'):tr('照片已载入，元数据不会写入导出文件。','Photo loaded. Metadata will not be written to the export.'));draw();focusEntryControl();}catch(e){alert(e.message||e);}
+  try{const img=await blobToImage(file);if(img.naturalWidth*img.naturalHeight>MAX_PIXELS)throw new Error(tr('图片超过 2400 万像素。','The image exceeds 24 megapixels.'));state.file=file;state.source=img;state.processed=null;state.sheetPreview=false;if(mode==='image'){const scale=Math.min(1,4096/Math.max(img.naturalWidth,img.naturalHeight));state.outputW=Math.max(32,Math.round(img.naturalWidth*scale));state.outputH=Math.max(32,Math.round(img.naturalHeight*scale));const outW=document.querySelector('#outW'),outH=document.querySelector('#outH');if(outW)outW.value=state.outputW;if(outH)outH.value=state.outputH;}document.querySelector('#editing').classList.remove('hidden');document.querySelector('#empty').classList.add('hidden');document.querySelector('#previewStage')?.classList.remove('hidden');document.querySelector('#canvas').classList.remove('hidden');setStatus(mode==='image'?tr('照片已载入，默认保持原图比例。','Photo loaded at its original aspect ratio.'):tr('照片已载入，元数据不会写入导出文件。','Photo loaded. Metadata will not be written to the export.'));updateIdSteps(1);draw();focusEntryControl();}catch(e){alert(e.message||e);}
 }
 function blobToImage(blob){return new Promise((resolve,reject)=>{const url=URL.createObjectURL(blob);state.objectUrls.push(url);const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(new Error(tr('无法读取这张图片。','Could not read this image.')));img.src=url;});}
 async function removeBg(){
   if(!state.file)return; if(state.bgMethod==='online')return removeOnlineBg(); const btn=document.querySelector('#removeBg'),bar=document.querySelector('#progress');btn.disabled=true;bar.classList.remove('hidden');setStatus(tr('正在准备本地人像模型…','Preparing the local portrait model…'));
-  try{const blob=await removeBackground(state.file,{model:'isnet_quint8',device:'cpu',output:{format:'image/png',quality:1,type:'foreground'},progress:(key,current,total)=>{const p=total?Math.round(current/total*100):15;bar.firstElementChild.style.width=p+'%';setStatus(tr(`正在本地处理：${p}%`,`Processing locally: ${p}%`));}});state.processed=await blobToImage(blob);bar.firstElementChild.style.width='100%';setStatus(tr('背景已去除，可以选择底色并微调位置。','Background removed. Choose a color and fine-tune the position.'));draw();}catch(e){console.error(e);alert(tr('智能去背景没有完成，请检查网络后重试。首次使用需要下载模型。','Background removal did not finish. Check your connection and try again; the first run downloads a model.'));setStatus(tr('去背景失败，原图仍可继续编辑。','Removal failed; you can still edit the original.'));}finally{btn.disabled=false;setTimeout(()=>bar.classList.add('hidden'),500);}
+  try{const blob=await removeBackground(state.file,{model:'isnet_quint8',device:'cpu',output:{format:'image/png',quality:1,type:'foreground'},progress:(key,current,total)=>{const p=total?Math.round(current/total*100):15;bar.firstElementChild.style.width=p+'%';setStatus(tr(`正在本地处理：${p}%`,`Processing locally: ${p}%`));}});state.processed=await blobToImage(blob);bar.firstElementChild.style.width='100%';setStatus(tr('背景已去除，可以选择底色并微调位置。','Background removed. Choose a color and fine-tune the position.'));updateIdSteps(2);draw();}catch(e){console.error(e);alert(tr('智能去背景没有完成，请检查网络后重试。首次使用需要下载模型。','Background removal did not finish. Check your connection and try again; the first run downloads a model.'));setStatus(tr('去背景失败，原图仍可继续编辑。','Removal failed; you can still edit the original.'));}finally{btn.disabled=false;setTimeout(()=>bar.classList.add('hidden'),500);}
 }
 
 async function removeOnlineBg(){
   const btn=document.querySelector('#removeBg'),bar=document.querySelector('#progress');btn.disabled=true;bar.classList.remove('hidden');bar.firstElementChild.style.width='18%';setStatus(tr('正在加密上传图片并等待服务器处理…','Uploading securely and waiting for server processing…'));
-  try{const form=new FormData();form.append('file',state.file,state.file.name||'photo');const response=await fetch(ONLINE_BG_API,{method:'POST',body:form,cache:'no-store'});if(!response.ok){const detail=await response.text();throw new Error(detail||response.statusText);}bar.firstElementChild.style.width='88%';const blob=await response.blob();state.processed=await blobToImage(blob);bar.firstElementChild.style.width='100%';setStatus(tr('在线去背景完成。服务器不会保存这张图片。','Online background removal complete. The server does not retain this image.'));draw();}catch(error){console.error(error);alert(tr('在线去背景暂时不可用。你可以改选“本地处理”，或稍后重试。','Online background removal is temporarily unavailable. Choose local processing or try again later.'));setStatus(tr('在线处理未完成，原图仍可继续编辑。','Online processing did not finish; you can still edit the original.'));}finally{btn.disabled=false;setTimeout(()=>bar.classList.add('hidden'),500);}
+  try{const form=new FormData();form.append('file',state.file,state.file.name||'photo');const response=await fetch(ONLINE_BG_API,{method:'POST',body:form,cache:'no-store'});if(!response.ok){const detail=await response.text();throw new Error(detail||response.statusText);}bar.firstElementChild.style.width='88%';const blob=await response.blob();state.processed=await blobToImage(blob);bar.firstElementChild.style.width='100%';setStatus(tr('在线去背景完成。服务器不会保存这张图片。','Online background removal complete. The server does not retain this image.'));updateIdSteps(2);draw();}catch(error){console.error(error);alert(tr('在线去背景暂时不可用。你可以改选“本地处理”，或稍后重试。','Online background removal is temporarily unavailable. Choose local processing or try again later.'));setStatus(tr('在线处理未完成，原图仍可继续编辑。','Online processing did not finish; you can still edit the original.'));}finally{btn.disabled=false;setTimeout(()=>bar.classList.add('hidden'),500);}
 }
 function clearCornerColor(){
   if(!state.source)return;const img=state.source,c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(img,0,0);const d=x.getImageData(0,0,c.width,c.height),pts=[[0,0],[c.width-1,0],[0,c.height-1],[c.width-1,c.height-1]],avg=[0,0,0];pts.forEach(([px,py])=>{const i=(py*c.width+px)*4;avg[0]+=d.data[i];avg[1]+=d.data[i+1];avg[2]+=d.data[i+2];});avg.forEach((_,i)=>avg[i]/=4);for(let i=0;i<d.data.length;i+=4){const dist=Math.hypot(d.data[i]-avg[0],d.data[i+1]-avg[1],d.data[i+2]-avg[2]);if(dist<42)d.data[i+3]=Math.round(255*dist/42);}x.putImageData(d,0,0);c.toBlob(async b=>{state.processed=await blobToImage(b);draw();setStatus(tr('已将接近四角的颜色转为透明。','Colors close to the corners are now transparent.'));},'image/png');
