@@ -28,7 +28,7 @@ function freshState(){ return { file:null, source:null, processed:null, outputW:
   removing:false, progress:0, status:'', objectUrls:[], watermarkText:'', watermarkColor:'#ffffff', bgMethod:'online',
   watermarkOpacity:.85, watermarkSize:42, watermarkX:42, watermarkY:88, watermarkTile:false, watermarkLogo:null,
   logoOpacity:.9, logoSize:22, logoX:82, logoY:82, collageImages:[], collageLayout:'grid', collageGap:18, sheetPreview:false,
-  rawCutoutBlob:null, edgeCleanup:72, edgeCleanupRun:0 }; }
+  rawCutoutBlob:null, edgeCleanup:38, spillCleanup:82, edgeCleanupRun:0 }; }
 const tr = (zh,en) => lang === 'zh' ? zh : en;
 
 function toolIcon(type){
@@ -140,7 +140,8 @@ function idEditor(){
                 <button class="id-color" data-bg="#d9303e"><i style="background:#d9303e"></i>${tr('红底','Red')}</button>
                 <label class="id-color"><input id="bgCustom" type="color" value="#ffffff" class="hidden"><i style="background:linear-gradient(135deg,#f66,#fc6,#6c9,#69f)"></i>${tr('自定义','Custom')}</label>
               </div>
-              <label class="field edge-cleanup-field"><span class="field-label"><span>${tr('边缘优化','Edge cleanup')}</span><output id="edgeCleanupOut">72%</output></span><input id="edgeCleanup" type="range" min="0" max="100" value="72"><small>${tr('蓝边明显时向右调；发丝损失时向左调。','Move right for color fringes; left to preserve more hair.')}</small></label>
+              <label class="field edge-cleanup-field"><span class="field-label"><span>${tr('边缘收缩','Edge contraction')}</span><output id="edgeCleanupOut">38%</output></span><input id="edgeCleanup" type="range" min="0" max="100" value="38"><small>${tr('只处理最外层轮廓；过高可能损失细发丝。','Only affects the outer contour; high values may remove fine hair.')}</small></label>
+              <label class="field spill-cleanup-field"><span class="field-label"><span>${tr('蓝 / 绿杂边清理','Blue / green spill cleanup')}</span><output id="spillCleanupOut">82%</output></span><input id="spillCleanup" type="range" min="0" max="100" value="82"><small>${tr('中和进入头发内部的原背景颜色，不收缩人物轮廓。','Neutralizes old background color inside hair without shrinking the portrait.')}</small></label>
             </div>
             <div class="control-section">
               <h3>3 · ${tr('规格与人物位置','Size and portrait position')}</h3>
@@ -180,6 +181,9 @@ function idEditor(){
   const edgeCleanup=document.querySelector('#edgeCleanup');
   edgeCleanup.oninput=()=>{document.querySelector('#edgeCleanupOut').textContent=edgeCleanup.value+'%';};
   edgeCleanup.onchange=async()=>{state.edgeCleanup=+edgeCleanup.value;await applyEdgeCleanup();};
+  const spillCleanup=document.querySelector('#spillCleanup');
+  spillCleanup.oninput=()=>{document.querySelector('#spillCleanupOut').textContent=spillCleanup.value+'%';};
+  spillCleanup.onchange=async()=>{state.spillCleanup=+spillCleanup.value;await applyEdgeCleanup();};
 }
 
 function updateIdSteps(step){
@@ -314,7 +318,7 @@ async function loadFile(file){
 }
 function blobToImage(blob){return new Promise((resolve,reject)=>{const url=URL.createObjectURL(blob);state.objectUrls.push(url);const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(new Error(tr('无法读取这张图片。','Could not read this image.')));img.src=url;});}
 
-async function cleanCutoutEdges(blob,cleanup=72){
+async function cleanCutoutEdges(blob,cleanup=38,spillCleanup=82){
   if(!state.source)return blob;
   const cutout=await blobToImage(blob),width=cutout.naturalWidth,height=cutout.naturalHeight;
   if(width!==state.source.naturalWidth||height!==state.source.naturalHeight)return blob;
@@ -330,8 +334,18 @@ async function cleanCutoutEdges(blob,cleanup=72){
   const backgroundGray=(background[0]+background[1]+background[2])/3,
     backgroundChroma=[background[0]-backgroundGray,background[1]-backgroundGray,background[2]-backgroundGray],
     chromaNorm=backgroundChroma[0]**2+backgroundChroma[1]**2+backgroundChroma[2]**2,
-    edgeOffsets=[[-1,0],[1,0],[0,-1],[0,1],[-2,0],[2,0],[0,-2],[0,2],[-3,0],[3,0],[0,-3],[0,3],[-1,-1],[1,-1],[-1,1],[1,1]],
-    cleanupStrength=cleanup/100;
+    cleanupStrength=cleanup/100,spillStrength=spillCleanup/100,
+    maxBand=14,edgeDistance=new Uint8Array(width*height);
+  edgeDistance.fill(maxBand+1);
+  for(let p=0;p<edgeDistance.length;p++)if(resultData.data[p*4+3]<12)edgeDistance[p]=0;
+  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+    const p=y*width+x;if(edgeDistance[p]===0)continue;
+    let d=edgeDistance[p];if(x)d=Math.min(d,edgeDistance[p-1]+1);if(y)d=Math.min(d,edgeDistance[p-width]+1);edgeDistance[p]=d;
+  }
+  for(let y=height-1;y>=0;y--)for(let x=width-1;x>=0;x--){
+    const p=y*width+x;if(edgeDistance[p]===0)continue;
+    let d=edgeDistance[p];if(x<width-1)d=Math.min(d,edgeDistance[p+1]+1);if(y<height-1)d=Math.min(d,edgeDistance[p+width]+1);edgeDistance[p]=d;
+  }
   for(let i=0;i<resultData.data.length;i+=4){
     const alpha=resultData.data[i+3]/255;
     if(alpha<=.03)continue;
@@ -344,24 +358,28 @@ async function cleanCutoutEdges(blob,cleanup=72){
       }
       if(alpha<.12)resultData.data[i+3]=Math.round(resultData.data[i+3]*(alpha/.12));
     }
-    const pixel=i/4,x=pixel%width,y=Math.floor(pixel/width);
-    let minAlpha=resultData.data[i+3];
-    for(const [dx,dy] of edgeOffsets){
-      const nx=x+dx,ny=y+dy;if(nx<0||ny<0||nx>=width||ny>=height)continue;
-      minAlpha=Math.min(minAlpha,resultData.data[(ny*width+nx)*4+3]);
-    }
-    const boundary=1-minAlpha/255;
-    if(boundary>.04){
+    const pixel=i/4,distanceToEdge=edgeDistance[pixel],boundary=Math.max(0,1-distanceToEdge/4);
+    if(boundary>.01){
       const dr=sourceData.data[i]-background[0],dg=sourceData.data[i+1]-background[1],db=sourceData.data[i+2]-background[2],
         distance=Math.sqrt(dr*dr+dg*dg+db*db),
         similarity=Math.max(0,Math.min(1,(115-distance)/95)),
-        removeAmount=similarity*Math.min(1,boundary*1.5)*cleanupStrength;
+        removeAmount=similarity*boundary*cleanupStrength;
       if(removeAmount>.01)resultData.data[i+3]=Math.round(resultData.data[i+3]*(1-removeAmount));
-      if(chromaNorm>180){
+    }
+    if(distanceToEdge<=maxBand&&chromaNorm>180){
+      const bandFalloff=Math.max(0,1-(distanceToEdge-1)/maxBand);
+      if(bandFalloff>0){
         const pixelGray=(resultData.data[i]+resultData.data[i+1]+resultData.data[i+2])/3,
           projection=((resultData.data[i]-pixelGray)*backgroundChroma[0]+(resultData.data[i+1]-pixelGray)*backgroundChroma[1]+(resultData.data[i+2]-pixelGray)*backgroundChroma[2])/chromaNorm,
-          spill=Math.max(0,Math.min(1.35,projection))*Math.min(1,boundary*1.3);
-        if(spill>.01)for(let channel=0;channel<3;channel++)resultData.data[i+channel]=Math.max(0,Math.min(255,Math.round(resultData.data[i+channel]-backgroundChroma[channel]*spill)));
+          spill=Math.max(0,Math.min(1.6,projection))*bandFalloff*spillStrength;
+        if(spill>.01){
+          const luma=resultData.data[i]*.2126+resultData.data[i+1]*.7152+resultData.data[i+2]*.0722;
+          for(let channel=0;channel<3;channel++){
+            const decontaminated=resultData.data[i+channel]-backgroundChroma[channel]*spill,
+              neutralized=decontaminated*(1-Math.min(.72,spill*.5))+luma*Math.min(.72,spill*.5);
+            resultData.data[i+channel]=Math.max(0,Math.min(255,Math.round(neutralized)));
+          }
+        }
       }
     }
   }
@@ -373,20 +391,20 @@ async function applyEdgeCleanup(){
   if(!state.rawCutoutBlob)return;
   const run=++state.edgeCleanupRun;
   setStatus(tr('正在重新优化人物边缘…','Refining portrait edges…'));
-  const cleaned=await cleanCutoutEdges(state.rawCutoutBlob,state.edgeCleanup);
+  const cleaned=await cleanCutoutEdges(state.rawCutoutBlob,state.edgeCleanup,state.spillCleanup);
   if(run!==state.edgeCleanupRun)return;
   state.processed=await blobToImage(cleaned);draw();
-  setStatus(tr(`边缘优化已调整为 ${state.edgeCleanup}% 。`,`Edge cleanup set to ${state.edgeCleanup}%.`));
+  setStatus(tr(`边缘收缩 ${state.edgeCleanup}% · 杂边清理 ${state.spillCleanup}% 。`,`Edge ${state.edgeCleanup}% · spill cleanup ${state.spillCleanup}%.`));
 }
 
 async function removeBg(){
   if(!state.file)return; if(state.bgMethod==='online')return removeOnlineBg(); const btn=document.querySelector('#removeBg'),bar=document.querySelector('#progress');btn.disabled=true;bar.classList.remove('hidden');setStatus(tr('正在准备本地人像模型…','Preparing the local portrait model…'));
-  try{const blob=await removeBackground(state.file,{model:'isnet_quint8',device:'cpu',output:{format:'image/png',quality:1,type:'foreground'},progress:(key,current,total)=>{const p=total?Math.round(current/total*100):15;bar.firstElementChild.style.width=p+'%';setStatus(tr(`正在本地处理：${p}%`,`Processing locally: ${p}%`));}});setStatus(tr('正在净化人物边缘…','Cleaning portrait edges…'));state.rawCutoutBlob=blob;state.processed=await blobToImage(await cleanCutoutEdges(blob,state.edgeCleanup));bar.firstElementChild.style.width='100%';setStatus(tr('背景已去除，可继续调整边缘优化强度。','Background removed. Fine-tune edge cleanup if needed.'));updateIdSteps(2);draw();}catch(e){console.error(e);alert(tr('智能去背景没有完成，请检查网络后重试。首次使用需要下载模型。','Background removal did not finish. Check your connection and try again; the first run downloads a model.'));setStatus(tr('去背景失败，原图仍可继续编辑。','Removal failed; you can still edit the original.'));}finally{btn.disabled=false;setTimeout(()=>bar.classList.add('hidden'),500);}
+  try{const blob=await removeBackground(state.file,{model:'isnet_quint8',device:'cpu',output:{format:'image/png',quality:1,type:'foreground'},progress:(key,current,total)=>{const p=total?Math.round(current/total*100):15;bar.firstElementChild.style.width=p+'%';setStatus(tr(`正在本地处理：${p}%`,`Processing locally: ${p}%`));}});setStatus(tr('正在净化人物边缘…','Cleaning portrait edges…'));state.rawCutoutBlob=blob;state.processed=await blobToImage(await cleanCutoutEdges(blob,state.edgeCleanup,state.spillCleanup));bar.firstElementChild.style.width='100%';setStatus(tr('背景已去除，可继续调整两项边缘参数。','Background removed. Fine-tune both edge controls if needed.'));updateIdSteps(2);draw();}catch(e){console.error(e);alert(tr('智能去背景没有完成，请检查网络后重试。首次使用需要下载模型。','Background removal did not finish. Check your connection and try again; the first run downloads a model.'));setStatus(tr('去背景失败，原图仍可继续编辑。','Removal failed; you can still edit the original.'));}finally{btn.disabled=false;setTimeout(()=>bar.classList.add('hidden'),500);}
 }
 
 async function removeOnlineBg(){
   const btn=document.querySelector('#removeBg'),bar=document.querySelector('#progress');btn.disabled=true;bar.classList.remove('hidden');bar.firstElementChild.style.width='18%';setStatus(tr('正在加密上传图片并等待服务器处理…','Uploading securely and waiting for server processing…'));
-  try{const form=new FormData();form.append('file',state.file,state.file.name||'photo');const response=await fetch(ONLINE_BG_API,{method:'POST',body:form,cache:'no-store'});if(!response.ok){const detail=await response.text();throw new Error(detail||response.statusText);}bar.firstElementChild.style.width='88%';const blob=await response.blob();setStatus(tr('正在净化人物边缘…','Cleaning portrait edges…'));state.rawCutoutBlob=blob;state.processed=await blobToImage(await cleanCutoutEdges(blob,state.edgeCleanup));bar.firstElementChild.style.width='100%';setStatus(tr('在线去背景完成，可继续调整边缘优化强度。','Online removal complete. Fine-tune edge cleanup if needed.'));updateIdSteps(2);draw();}catch(error){console.error(error);alert(tr('在线去背景暂时不可用。你可以改选“本地处理”，或稍后重试。','Online background removal is temporarily unavailable. Choose local processing or try again later.'));setStatus(tr('在线处理未完成，原图仍可继续编辑。','Online processing did not finish; you can still edit the original.'));}finally{btn.disabled=false;setTimeout(()=>bar.classList.add('hidden'),500);}
+  try{const form=new FormData();form.append('file',state.file,state.file.name||'photo');const response=await fetch(ONLINE_BG_API,{method:'POST',body:form,cache:'no-store'});if(!response.ok){const detail=await response.text();throw new Error(detail||response.statusText);}bar.firstElementChild.style.width='88%';const blob=await response.blob();setStatus(tr('正在净化人物边缘…','Cleaning portrait edges…'));state.rawCutoutBlob=blob;state.processed=await blobToImage(await cleanCutoutEdges(blob,state.edgeCleanup,state.spillCleanup));bar.firstElementChild.style.width='100%';setStatus(tr('在线去背景完成，可继续调整两项边缘参数。','Online removal complete. Fine-tune both edge controls if needed.'));updateIdSteps(2);draw();}catch(error){console.error(error);alert(tr('在线去背景暂时不可用。你可以改选“本地处理”，或稍后重试。','Online background removal is temporarily unavailable. Choose local processing or try again later.'));setStatus(tr('在线处理未完成，原图仍可继续编辑。','Online processing did not finish; you can still edit the original.'));}finally{btn.disabled=false;setTimeout(()=>bar.classList.add('hidden'),500);}
 }
 function clearCornerColor(){
   if(!state.source)return;const img=state.source,c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(img,0,0);const d=x.getImageData(0,0,c.width,c.height),pts=[[0,0],[c.width-1,0],[0,c.height-1],[c.width-1,c.height-1]],avg=[0,0,0];pts.forEach(([px,py])=>{const i=(py*c.width+px)*4;avg[0]+=d.data[i];avg[1]+=d.data[i+1];avg[2]+=d.data[i+2];});avg.forEach((_,i)=>avg[i]/=4);for(let i=0;i<d.data.length;i+=4){const dist=Math.hypot(d.data[i]-avg[0],d.data[i+1]-avg[1],d.data[i+2]-avg[2]);if(dist<42)d.data[i+3]=Math.round(255*dist/42);}x.putImageData(d,0,0);c.toBlob(async b=>{state.processed=await blobToImage(b);draw();setStatus(tr('已将接近四角的颜色转为透明。','Colors close to the corners are now transparent.'));},'image/png');
