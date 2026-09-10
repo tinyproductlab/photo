@@ -20,6 +20,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://photo.tinylabpro.com",
+        "https://image.tinylabpro.com",
         "https://tinyproductlab.github.io",
         "http://127.0.0.1:4174",
     ],
