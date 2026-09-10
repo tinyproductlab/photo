@@ -26,6 +26,8 @@
 .id-color{display:flex;flex-direction:column;align-items:center;gap:5px;border:0;background:transparent;color:var(--muted);font-size:10px}
 .id-color i{display:block;width:30px;height:30px;border:2px solid #fff;border-radius:9px;box-shadow:0 0 0 1px var(--line)}
 .id-color.active i{box-shadow:0 0 0 2px #dc6d5b}
+.edge-cleanup-field{margin:13px 0 0;padding-top:12px;border-top:1px solid var(--line)}
+.edge-cleanup-field small{display:block;margin-top:3px;color:var(--muted);font-size:10px;line-height:1.45}
 .id-export-note{margin:10px 0 0;color:var(--muted);font-size:10.5px;line-height:1.55}
 .id-reset{margin:1px 0 12px;background:#faf9f7;color:#59646a}
 @media(max-width:900px){.id-steps{display:none}.id-editor{grid-template-columns:1fr}.id-editor>.controls{order:1;border-left:0;border-bottom:1px solid var(--line)}.id-editor>.canvas-area{order:2;min-height:500px}}
