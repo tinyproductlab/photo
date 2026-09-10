@@ -19,6 +19,9 @@
 .id-methods strong,.id-methods small{display:block}
 .id-methods strong{font-size:12px}
 .id-methods small{margin-top:3px;color:var(--muted);font-size:10.5px;line-height:1.45}
+.model-cache-note{margin:8px 0 11px;padding:9px 10px;border:1px solid #e9e2da;border-radius:9px;background:#faf8f5;color:var(--muted);font-size:10.5px;line-height:1.55}
+.model-cache-note summary{color:#59646a;font-weight:700;cursor:pointer}
+.model-cache-note p{margin:7px 0 0}
 .id-colors{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:11px}
 .id-color{display:flex;flex-direction:column;align-items:center;gap:5px;border:0;background:transparent;color:var(--muted);font-size:10px}
 .id-color i{display:block;width:30px;height:30px;border:2px solid #fff;border-radius:9px;box-shadow:0 0 0 1px var(--line)}

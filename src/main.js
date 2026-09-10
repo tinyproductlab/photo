@@ -127,6 +127,10 @@ function idEditor(){
                 <label><input type="radio" name="bgMethod" value="local" checked><span><strong>${tr('本地处理（推荐）','Local processing (recommended)')}</strong><small>${tr('照片不上传；首次需下载模型，之后可缓存使用。','Photo stays on device; the model downloads once and is cached.')}</small></span></label>
                 <label><input type="radio" name="bgMethod" value="online"><span><strong>${tr('在线处理（更快捷）','Online processing (faster)')}</strong><small>${tr('照片会临时发送到服务器处理，处理完成后不保存。','Photo is sent temporarily and is not retained after processing.')}</small></span></label>
               </div>
+              <details class="model-cache-note">
+                <summary>${tr('模型存在哪里？什么时候会消失？','Where is the model stored?')}</summary>
+                <p>${tr('首次本地处理会下载约 40 MB 模型，保存在当前浏览器的本站缓存中，不会出现在“下载”目录，也不会安装软件。清除本站数据、退出无痕模式、浏览器因空间不足自动清理，或更换浏览器、手机、电脑后，缓存会消失，下次使用需要重新下载。','The first local run downloads a ~40 MB model into this site’s cache in your current browser. It does not appear in Downloads and installs no software. It is removed when site data is cleared, a private session ends, the browser frees storage, or you switch browser or device; the next local run will download it again.')}</p>
+              </details>
               <button class="btn primary wide" id="removeBg">${tr('开始智能去背景','Remove background')}</button>
               <div class="progress hidden" id="progress"><i></i></div>
               <div class="id-colors" aria-label="${tr('背景颜色','Background color')}">
