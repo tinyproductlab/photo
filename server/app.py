@@ -36,8 +36,16 @@ def healthz():
 def remove_in_memory(data: bytes) -> bytes:
     global session
     if session is None:
-        session = new_session("isnet-general-use")
-    return remove(data, session=session, force_return_bytes=True)
+        session = new_session("u2net_human_seg")
+    return remove(
+        data,
+        session=session,
+        alpha_matting=True,
+        alpha_matting_foreground_threshold=240,
+        alpha_matting_background_threshold=10,
+        alpha_matting_erode_size=8,
+        force_return_bytes=True,
+    )
 
 
 @app.post("/v1/remove-background")
