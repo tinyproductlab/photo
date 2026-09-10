@@ -148,6 +148,7 @@ function idEditor(){
                 <label class="field"><span class="field-label">${tr('高度 px','Height px')}</span><input id="outH" type="number" min="100" max="4096" value="413"></label>
               </div>
               ${positionControls()}
+              <button class="btn wide id-reset" id="resetId">↶ ${tr('恢复原图与初始设置','Restore original and reset')}</button>
               <div class="quality-list" id="checks"></div>
             </div>
             <div class="control-section">
@@ -173,11 +174,25 @@ function idEditor(){
   upload.ondragleave=()=>upload.classList.remove('drag-over');
   upload.ondrop=e=>{e.preventDefault();upload.classList.remove('drag-over');loadFile(e.dataTransfer.files[0]);};
   bindEditor();
+  document.querySelector('#resetId').onclick=resetIdPhoto;
 }
 
 function updateIdSteps(step){
   if(mode!=='id')return;
   document.querySelectorAll('.id-step').forEach((item,index)=>item.classList.toggle('active',index<=step));
+}
+
+function resetIdPhoto(){
+  if(!state.source)return;
+  const file=state.file,source=state.source,objectUrls=state.objectUrls;
+  state=freshState();state.file=file;state.source=source;state.objectUrls=objectUrls;state.bgMethod='local';
+  idEditor();
+  document.querySelector('#editing').classList.remove('hidden');
+  document.querySelector('#empty').classList.add('hidden');
+  document.querySelector('#previewStage')?.classList.remove('hidden');
+  document.querySelector('#canvas').classList.remove('hidden');
+  updateIdSteps(1);draw();
+  setStatus(tr('已恢复原图和初始设置。','Original photo and initial settings restored.'));
 }
 
 function editor(){

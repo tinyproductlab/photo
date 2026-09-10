@@ -27,5 +27,6 @@
 .id-color i{display:block;width:30px;height:30px;border:2px solid #fff;border-radius:9px;box-shadow:0 0 0 1px var(--line)}
 .id-color.active i{box-shadow:0 0 0 2px #dc6d5b}
 .id-export-note{margin:10px 0 0;color:var(--muted);font-size:10.5px;line-height:1.55}
+.id-reset{margin:1px 0 12px;background:#faf9f7;color:#59646a}
 @media(max-width:900px){.id-steps{display:none}.id-editor{grid-template-columns:1fr}.id-editor>.controls{order:1;border-left:0;border-bottom:1px solid var(--line)}.id-editor>.canvas-area{order:2;min-height:500px}}
 @media(max-width:520px){.id-guide{grid-template-columns:1fr}.id-workspace .workspace-head{align-items:flex-start}.id-editor>.canvas-area{min-height:420px}}
