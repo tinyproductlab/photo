@@ -322,16 +322,37 @@ async function cleanCutoutEdges(blob){
   const corners=[[0,0],[width-sample,0],[0,height-sample],[width-sample,height-sample]];
   for(const [left,top] of corners)for(let y=top;y<top+sample;y+=2)for(let x=left;x<left+sample;x+=2){const i=(y*width+x)*4;background[0]+=sourceData.data[i];background[1]+=sourceData.data[i+1];background[2]+=sourceData.data[i+2];samples++;}
   background[0]/=samples;background[1]/=samples;background[2]/=samples;
+  const backgroundGray=(background[0]+background[1]+background[2])/3,
+    backgroundChroma=[background[0]-backgroundGray,background[1]-backgroundGray,background[2]-backgroundGray],
+    chromaNorm=backgroundChroma[0]**2+backgroundChroma[1]**2+backgroundChroma[2]**2,
+    edgeOffsets=[[-2,0],[2,0],[0,-2],[0,2],[-1,-1],[1,-1],[-1,1],[1,1]];
   for(let i=0;i<resultData.data.length;i+=4){
     const alpha=resultData.data[i+3]/255;
-    if(alpha<=.03||alpha>=.985)continue;
-    const strength=Math.min(.92,(1-alpha)*1.35);
-    for(let channel=0;channel<3;channel++){
-      const recovered=(sourceData.data[i+channel]-(1-alpha)*background[channel])/Math.max(alpha,.08);
-      const corrected=Math.max(0,Math.min(255,recovered));
-      resultData.data[i+channel]=Math.round(resultData.data[i+channel]*(1-strength)+corrected*strength);
+    if(alpha<=.03)continue;
+    if(alpha<.985){
+      const strength=Math.min(.94,(1-alpha)*1.5);
+      for(let channel=0;channel<3;channel++){
+        const recovered=(sourceData.data[i+channel]-(1-alpha)*background[channel])/Math.max(alpha,.08);
+        const corrected=Math.max(0,Math.min(255,recovered));
+        resultData.data[i+channel]=Math.round(resultData.data[i+channel]*(1-strength)+corrected*strength);
+      }
+      if(alpha<.12)resultData.data[i+3]=Math.round(resultData.data[i+3]*(alpha/.12));
     }
-    if(alpha<.12)resultData.data[i+3]=Math.round(resultData.data[i+3]*(alpha/.12));
+    const pixel=i/4,x=pixel%width,y=Math.floor(pixel/width);
+    let minAlpha=resultData.data[i+3];
+    for(const [dx,dy] of edgeOffsets){
+      const nx=x+dx,ny=y+dy;if(nx<0||ny<0||nx>=width||ny>=height)continue;
+      minAlpha=Math.min(minAlpha,resultData.data[(ny*width+nx)*4+3]);
+    }
+    const boundary=1-minAlpha/255;
+    if(boundary>.04){
+      if(chromaNorm>180){
+        const pixelGray=(resultData.data[i]+resultData.data[i+1]+resultData.data[i+2])/3,
+          projection=((resultData.data[i]-pixelGray)*backgroundChroma[0]+(resultData.data[i+1]-pixelGray)*backgroundChroma[1]+(resultData.data[i+2]-pixelGray)*backgroundChroma[2])/chromaNorm,
+          spill=Math.max(0,Math.min(1.35,projection))*Math.min(1,boundary*1.3);
+        if(spill>.01)for(let channel=0;channel<3;channel++)resultData.data[i+channel]=Math.max(0,Math.min(255,Math.round(resultData.data[i+channel]-backgroundChroma[channel]*spill)));
+      }
+    }
   }
   resultContext.putImageData(resultData,0,0);
   return new Promise(resolve=>resultCanvas.toBlob(resolve,'image/png'));
