@@ -27,3 +27,10 @@
   .domain-memory { width: 100%; }
   .domain-row { justify-content: space-between; gap: 8px; }
 }
+
+.tpl-brand{margin-top:24px;padding-top:20px;border-top:1px solid var(--line,#e5e7eb);display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;color:var(--muted,#6b7280)}
+.tpl-brand__name{font-weight:700;color:var(--text,#111827);margin:0}
+.tpl-brand__links{display:flex;flex-wrap:wrap;gap:16px;justify-content:center}
+.tpl-brand__links a{color:var(--muted,#6b7280);text-decoration:none}
+.tpl-brand__links a:hover{color:var(--accent,#2563eb)}
+.tpl-brand__copy{margin:0;font-size:12px}
