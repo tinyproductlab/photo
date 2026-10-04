@@ -1,0 +1,19 @@
+/* Keep the preview stationary while the settings scroll. */
+@media (min-width: 761px) {
+  .combined-editor {
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 390px);
+    height: clamp(480px, 72dvh, 800px);
+    min-height: 0;
+    overflow: hidden;
+  }
+  .combined-editor > .controls {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    scrollbar-gutter: stable;
+  }
+  .combined-editor > .canvas-area { min-height: 0; overflow: hidden; }
+  .combined-editor .canvas-wrap { min-height: 0; overflow: hidden; padding: 24px; }
+  .combined-editor .preview-stage { max-height: 100%; min-height: 0; grid-template-rows: 24px minmax(0, 1fr); }
+  .combined-editor .preview-stage canvas { max-height: 100%; object-fit: contain; }
+}
